@@ -1,0 +1,49 @@
+name: Ubuntu
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+    branches:
+      - master
+      - main
+
+env:
+  INSTALL_LOCATION: $HOME/.local
+  BUILD_TYPE: Release
+  CTEST_OUTPUT_ON_FAILURE: 1
+  PROJECT_NAME: "MODERN_CPP_PROJECT"
+  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/cpm_modules
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/cache@v3
+        with:
+          path: "**/cpm_modules"
+          key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      - name: configure
+        run: cmake -Bbuild -D${PROJECT_NAME}_ENABLE_TEST_COVERAGE=1 -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/$INSTALL_LOCATION
+        
+      - name: build
+        run: cmake --build build --config $BUILD_TYPE -j4
+
+      - name: test
+        run: |
+          cd build
+          ctest -C $BUILD_TYPE -VV
+
+      - name: install project
+        run: cmake --build build --target install --config $BUILD_TYPE 
+      
+      - name: collect code coverage
+        run: bash <(curl -s https://codecov.io/bash) || echo "Codecov did not collect coverage reports"
+    
